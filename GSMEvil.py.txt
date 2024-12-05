@@ -1,0 +1,191 @@
+import os
+import sqlite3
+from datetime import datetime
+from flask import Flask, render_template
+from flask_socketio import SocketIO
+from threading import Thread
+from optparse import OptionParser
+
+app = Flask(__name__)
+socketio = SocketIO(app)
+sniffers_state = {"sms": False, "imsi": False, "gsm": False}
+
+# Ensure the database directories exist
+def ensure_database_directories():
+    db_dirs = ['database/imsi.db', 'database/sms.db']
+    for db_path in db_dirs:
+        db_dir = os.path.dirname(db_path)
+        if not os.path.exists(db_dir):
+            os.makedirs(db_dir)
+
+class GsmSniffer:
+    def __init__(self):
+        # Initialization code here
+        self.imsi_evil = ImSiEvil()
+        self.sms_evil = SmsEvil()
+
+    def sniffer(self):
+        print("Sniffer started.")
+        # Implement your sniffer logic here
+        # Call self.imsi_evil.get_imsi(packet) and self.sms_evil.get_sms(packet)
+        pass
+
+class ImSiEvil:
+    def __init__(self):
+        self.sql_conn = self.connect_db('database/imsi.db')
+        self.create_imsi_table()
+
+    def connect_db(self, db_path):
+        conn = sqlite3.connect(db_path)
+        return conn
+
+    def create_imsi_table(self):
+        self.sql_conn.execute('''
+            CREATE TABLE IF NOT EXISTS imsi_data (
+                id INTEGER PRIMARY KEY,
+                imsi TEXT,
+                tmsi TEXT,
+                mcc INTEGER,
+                mnc INTEGER,
+                lac INTEGER,
+                ci INTEGER,
+                date_time TIMESTAMP
+            )
+        ''')
+        self.sql_conn.commit()
+
+    def save_data(self, imsi, tmsi, mcc, mnc, lac, ci):
+        date_time = datetime.now().strftime("%H:%M:%S %Y-%m-%d")
+        self.sql_conn.execute('''
+            INSERT INTO imsi_data(imsi, tmsi, mcc, mnc, lac, ci, date_time)
+            VALUES (?, ?, ?, ?, ?, ?, ?)''', (imsi, tmsi, mcc, mnc, lac, ci, date_time))
+        self.sql_conn.commit()
+
+    def get_imsi(self, packet):
+        # Extract IMSI information from the packet
+        # Implement logic to extract IMSI here
+        pass
+
+class SmsEvil:
+    def __init__(self):
+        self.sql_conn = self.connect_db('database/sms.db')
+        self.create_sms_table()
+
+    def connect_db(self, db_path):
+        conn = sqlite3.connect(db_path)
+        return conn
+
+    def create_sms_table(self):
+        self.sql_conn.execute('''
+            CREATE TABLE IF NOT EXISTS sms_data (
+                id INTEGER PRIMARY KEY,
+                text TEXT,
+                sender TEXT,
+                receiver TEXT,
+                date_time TIMESTAMP
+            )
+        ''')
+        self.sql_conn.commit()
+
+    def save_data(self, text, sender, receiver):
+        date_time = datetime.now().strftime("%H:%M:%S %Y-%m-%d")
+        self.sql_conn.execute('''
+            INSERT INTO sms_data(text, sender, receiver, date_time)
+            VALUES (?, ?, ?, ?)''', (text, sender, receiver, date_time))
+        self.sql_conn.commit()
+
+    def get_sms(self, packet):
+        # Extract SMS information from the packet
+        # Implement logic to extract SMS here
+        pass
+
+def header():
+    os.system('clear')
+    title = '''
+   ▄██████▄     ▄████████   ▄▄▄▄███▄▄▄▄      ▄████████  ▄█    █▄   ▄█   ▄█
+  ███    ███   ███    ███ ▄██▀▀▀███▀▀▀██▄   ███    ███ ███    ███ ███  ███
+  ███    █▀    ███    █▀  ███   ███   ███   ███    █▀  ███    ███ ███▌ ███
+ ▄███          ███        ███   ███   ███  ▄███▄▄▄     ███    ███ ███▌ ███
+▀▀███ ████▄  ▀███████████ ███   ███   ███ ▀▀███▀▀▀     ███    ███ ███▌ ███
+  ███    ███          ███ ███   ███   ███   ███    █▄  ███    ███ ███  ███
+  ███    ███    ▄█    ███ ███   ███   ███   ███    ███ ███    ███ ███  ███▌    ▄
+  ████████▀   ▄████████▀   ▀█   ███   █▀    ██████████  ▀██████▀  █▀   █████▄▄██
+                                                                       ▀
+                           ☠️ GSM EVIL ☠️
+--------------------------------------------------------------------------------
+
+About:-
+Author: Taylor Christian Newsome
+Version : 1.0.0
+
+Disclaimer:-
+This program was made to understand how GSM networks work.
+Use at your own risk!
+We are not responsible for any illegal activity!
+
+--------------------------------------------------------------------------------
+    '''
+    print("\033[0;31;48m" + title)
+
+@socketio.on('sms_sniffer')
+def handle_sms_event(json):
+    if json == "on":
+        if not sniffers_state["sms"]:
+            sniffers_state["sms"] = True
+            print("SMS sniffer started")
+            if not sniffers_state["gsm"]:
+                sniffers_state["gsm"] = True
+    else:
+        if sniffers_state["sms"]:
+            sniffers_state["sms"] = False
+            print("SMS sniffer stopped")
+    socketio.emit('sniffers', sniffers_state)
+
+@socketio.on('imsi_sniffer')
+def handle_imsi_event(json):
+    if json == "on":
+        if not sniffers_state["imsi"]:
+            sniffers_state["imsi"] = True
+            print("IMSI sniffer started")
+            if not sniffers_state["gsm"]:
+                sniffers_state["gsm"] = True
+    else:
+        if sniffers_state["imsi"]:
+            sniffers_state["imsi"] = False
+            print("IMSI sniffer stopped")
+    socketio.emit('sniffers', sniffers_state)
+
+@app.route('/')
+def home():
+    return render_template('home.html')
+
+@app.route('/sms/')
+def sms():
+    return render_template('sms.html')
+
+@app.route('/imsi/')
+def imsi():
+    return render_template('imsi.html')
+
+def server():
+    app.run(host='0.0.0.0', port=80, threaded=True)
+
+if __name__ == "__main__":
+    ensure_database_directories()  # Create database directories if needed
+    header()
+    parser = OptionParser(usage="%prog: [options]")
+    parser.add_option("-i", "--iface", dest="iface", default="lo", help="Interface (default: lo)")
+    parser.add_option("-p", "--port", dest="port", default="80", type="int", help="Port (default: 80)")
+    parser.add_option("--host", dest="host", default="localhost", help="Host (default: localhost)")
+    (options, args) = parser.parse_args()
+
+    server_thread = Thread(target=server)
+    server_thread.start()
+    header()
+    try:
+        gsm_sniffer = GsmSniffer()  # Initialize the GSM Sniffer
+        gsm_sniffer.sniffer()  # Start the sniffer
+    except KeyboardInterrupt:
+        print('Interrupted')
+        print('GsmEvil 2 closed!')
+        os._exit(0)
