@@ -1,1 +1,1 @@
-check proof of concept and the script for steps
+check proof of concept and the script for notes / steps
